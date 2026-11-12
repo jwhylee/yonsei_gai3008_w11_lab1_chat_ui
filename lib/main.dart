@@ -42,7 +42,13 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   /// 실습용 가짜 대화 — API를 붙이기 전까지 이 목록으로 화면을 만든다.
-  final List<ChatMessage> _messages = [];
+  /// 이미 대화를 조금 나눈 것처럼 보이도록 몇 줄을 미리 넣어 둔다.
+  final List<ChatMessage> _messages = [
+    ChatMessage(text: '오늘 뭐 배워?', isUser: true),
+    ChatMessage(text: 'AI 챗봇 화면을 만들어요. 말풍선, 입력창, 타이핑 표시까지요.', isUser: false),
+    ChatMessage(text: '타이핑 점은 왜 필요해요?', isUser: true),
+    ChatMessage(text: '응답이 1초를 넘으면 앱이 멈춘 것처럼 보이기 때문입니다.', isUser: false),
+  ];
 
   final _controller = TextEditingController();
 
@@ -50,7 +56,7 @@ class _ChatPageState extends State<ChatPage> {
   bool _sending = false;
   Timer? _responseTimer;
 
-  /// 대화가 비었을 때 입력창 위에 보여 줄 입력 예시.
+  /// 대화 영역 위쪽 접이식 패널에 보여 줄 입력 예시.
   static const _suggestions = [
     '오늘 뭐 배워?',
     'Flutter 위젯이 뭐야?',
@@ -58,12 +64,16 @@ class _ChatPageState extends State<ChatPage> {
     '오늘 할 일 정리해 줘',
   ];
 
+  /// 입력 예시 패널을 펼쳤는지. 배경을 깔끔하게 두려고 처음엔 접어 둔다.
+  bool _suggestionsOpen = false;
+
   bool get _canSend => _controller.text.trim().isNotEmpty;
   bool get _isUserTyping => _canSend;
 
-  /// 예시를 누르면 입력창에 채우기만 한다. 전송은 사용자가 직접 한다.
+  /// 예시를 누르면 입력창에 채우고 패널을 접는다. 전송은 사용자가 직접 한다.
   void _fillSuggestion(String text) {
     setState(() {
+      _suggestionsOpen = false;
       _controller.value = TextEditingValue(
         text: text,
         selection: TextSelection.collapsed(offset: text.length),
@@ -127,7 +137,6 @@ class _ChatPageState extends State<ChatPage> {
       1,
       4,
     );
-    final showSuggestions = _messages.isEmpty;
     final statusCount = (_isUserTyping ? 1 : 0) + (_sending ? 1 : 0);
 
     return Column(
@@ -140,7 +149,8 @@ class _ChatPageState extends State<ChatPage> {
         // ─────────────────────────────────────────────────────────
         // ─────────────────────────────────────────────────────────
         // TODO 4 — 빈 상태
-        //    배경 문구 대신 입력창 힌트로 "무엇이든 물어보세요"를 보여 준다.
+        //    배경 문구 대신 입력창 힌트로 "무엇이든 물어보세요"를 보여 주고,
+        //    대화 영역 위에 펼치고 접을 수 있는 입력 예시를 둔다.
         // ─────────────────────────────────────────────────────────
         Expanded(
           // 대화 영역(말풍선·입력 예시) 글자만 kChatScale배. 입력창은 원래 크기를 쓴다.
@@ -155,41 +165,51 @@ class _ChatPageState extends State<ChatPage> {
                     kChatScale,
               ),
             ),
-            child: ListView.builder(
-              reverse: true,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              // 입력/전송 중 표시도 가장 최근 항목처럼 목록 맨 아래에 놓는다.
-              // 입력 예시도 목록의 한 항목이라 공간이 모자라면 함께 스크롤된다.
-              itemCount:
-                  _messages.length + statusCount + (showSuggestions ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (_isUserTyping && index == 0) {
-                  return const _TypingBubble(
-                    isUser: true,
-                    label: '메시지를 입력하고 있습니다',
-                  );
-                }
-
-                final aiTypingIndex = _isUserTyping ? 1 : 0;
-                if (_sending && index == aiTypingIndex) {
-                  return const _TypingBubble(
-                    isUser: false,
-                    label: 'AI가 응답을 작성하고 있습니다',
-                  );
-                }
-
-                // 대화가 비었을 때만 보이므로 항상 마지막(화면 맨 위) 항목이다.
-                if (showSuggestions) {
-                  return _SuggestionChips(
+            child: Column(
+              children: [
+                // 입력 예시 패널은 화면 높이의 절반까지만 차지하고,
+                // 그보다 길면 패널 안에서 스크롤된다(낮은 화면에서도 넘치지 않게).
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: availableHeight * 0.5),
+                  child: _SuggestionPanel(
                     suggestions: _suggestions,
+                    isOpen: _suggestionsOpen,
+                    onToggle: () =>
+                        setState(() => _suggestionsOpen = !_suggestionsOpen),
                     onSelected: _fillSuggestion,
-                  );
-                }
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    // 입력/전송 중 표시도 가장 최근 항목처럼 목록 맨 아래에 놓는다.
+                    itemCount: _messages.length + statusCount,
+                    itemBuilder: (context, index) {
+                      if (_isUserTyping && index == 0) {
+                        return const _TypingBubble(
+                          isUser: true,
+                          label: '메시지를 입력하고 있습니다',
+                        );
+                      }
 
-                final message =
-                    _messages[_messages.length - 1 - (index - statusCount)];
-                return _Bubble(message: message);
-              },
+                      final aiTypingIndex = _isUserTyping ? 1 : 0;
+                      if (_sending && index == aiTypingIndex) {
+                        return const _TypingBubble(
+                          isUser: false,
+                          label: 'AI가 응답을 작성하고 있습니다',
+                        );
+                      }
+
+                      final message =
+                          _messages[_messages.length -
+                              1 -
+                              (index - statusCount)];
+                      return _Bubble(message: message);
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -206,34 +226,98 @@ class _ChatPageState extends State<ChatPage> {
   }
 }
 
-/// 입력 예시 칩을 왼쪽에 세로로 쌓아 모두 보여 준다.
-class _SuggestionChips extends StatelessWidget {
-  const _SuggestionChips({required this.suggestions, required this.onSelected});
+/// 대화 영역 위쪽의 접이식 입력 예시 패널.
+/// 머리줄을 누르면 펼치고 접으며, 펼치면 예시를 왼쪽에 세로로 쌓아 보여 준다.
+class _SuggestionPanel extends StatelessWidget {
+  const _SuggestionPanel({
+    required this.suggestions,
+    required this.isOpen,
+    required this.onToggle,
+    required this.onSelected,
+  });
 
   final List<String> suggestions;
+  final bool isOpen;
+  final VoidCallback onToggle;
   final ValueChanged<String> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        12 * kChatScale,
-        4 * kChatScale,
-        12 * kChatScale,
-        4 * kChatScale,
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final text in suggestions)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6 * kChatScale),
-              child: ActionChip(
-                label: Text(text),
-                onPressed: () => onSelected(text),
+      child: SingleChildScrollView(
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          alignment: Alignment.topCenter,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InkWell(
+                onTap: onToggle,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12 * kChatScale,
+                    vertical: 8 * kChatScale,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.lightbulb_outline,
+                        size: 18 * kChatScale,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 6 * kChatScale),
+                      Expanded(
+                        child: Text(
+                          '입력 예시',
+                          style: textTheme.labelLarge?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        isOpen ? Icons.expand_less : Icons.expand_more,
+                        semanticLabel: isOpen ? '입력 예시 접기' : '입력 예시 펼치기',
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-        ],
+              if (isOpen)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    12 * kChatScale,
+                    0,
+                    12 * kChatScale,
+                    4 * kChatScale,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final text in suggestions)
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: 6 * kChatScale,
+                          ),
+                          child: ActionChip(
+                            label: Text(text),
+                            onPressed: () => onSelected(text),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

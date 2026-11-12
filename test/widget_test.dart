@@ -61,10 +61,32 @@ void main() {
     );
   });
 
-  testWidgets('입력 예시를 누르면 입력창에 채워지고, 대화가 시작되면 사라진다', (tester) async {
+  testWidgets('이전 대화 흔적이 보인다', (tester) async {
     await tester.pumpWidget(const ChatLabApp());
 
-    expect(find.byType(ActionChip), findsWidgets);
+    expect(find.text('오늘 뭐 배워?'), findsOneWidget);
+    expect(find.text('타이핑 점은 왜 필요해요?'), findsOneWidget);
+  });
+
+  testWidgets('입력 예시는 펼치고 접을 수 있고, 누르면 입력창에 채워진다', (tester) async {
+    await tester.pumpWidget(const ChatLabApp());
+
+    // 처음에는 접혀 있다.
+    expect(find.text('입력 예시'), findsOneWidget);
+    expect(find.byType(ActionChip), findsNothing);
+
+    // 펼치면 4개가 보인다.
+    await tester.tap(find.text('입력 예시'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ActionChip), findsNWidgets(4));
+
+    // 다시 누르면 접힌다.
+    await tester.tap(find.text('입력 예시'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ActionChip), findsNothing);
+
+    await tester.tap(find.text('입력 예시'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ActionChip, 'Flutter 위젯이 뭐야?'));
     await tester.pump();
 
@@ -74,10 +96,8 @@ void main() {
       'Flutter 위젯이 뭐야?',
     );
 
-    await tester.tap(find.byIcon(Icons.send_rounded));
-    await tester.pump();
+    // 고르고 나면 패널은 접힌다.
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(ActionChip), findsNothing);
-
-    await tester.pump(const Duration(seconds: 2));
   });
 }

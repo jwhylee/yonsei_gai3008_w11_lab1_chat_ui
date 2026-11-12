@@ -22,30 +22,35 @@ void main() {
       for (final textScale in [1.0, 1.3]) {
         final label = '$name · 키보드 ${keyboard.toInt()} · 글자 x$textScale';
 
-        testWidgets('$label — 빈 화면 + 입력 예시', (tester) async {
+        testWidgets('$label — 입력 예시 펼침', (tester) async {
           await _pump(tester, size, keyboard, textScale);
-
           _expectComposerAligned(tester, size, keyboard);
+
+          await tester.tap(find.text('입력 예시'));
+          await tester.pumpAndSettle();
+          _expectComposerAligned(tester, size, keyboard);
+
           // 키보드가 없으면 입력 예시 4개가 모두 화면 안에 보여야 한다.
-          if (keyboard == 0) {
+          // (낮은 화면에서는 패널 안에서 스크롤된다)
+          if (keyboard == 0 && size.height >= 600) {
             for (final chip in tester.widgetList<ActionChip>(
               find.byType(ActionChip),
             )) {
               final rect = tester.getRect(find.byWidget(chip));
-              expect(rect.top, greaterThanOrEqualTo(0), reason: label);
+              final list = tester.getRect(find.byType(ListView));
+              expect(rect.bottom, lessThanOrEqualTo(list.top), reason: label);
             }
             expect(find.byType(ActionChip), findsNWidgets(4));
           }
         });
 
-        testWidgets('$label — 긴 대화 + 여러 줄 입력 + 응답 대기', (tester) async {
+        testWidgets('$label — 긴 대화 + 여러 줄 입력 + 응답 대기 + 예시 펼침', (tester) async {
           await _pump(tester, size, keyboard, textScale);
+          await tester.tap(find.text('입력 예시'));
+          await tester.pumpAndSettle();
 
           for (var i = 0; i < 6; i++) {
-            await tester.enterText(
-              find.byType(TextField),
-              '긴 메시지 $i ' * 20,
-            );
+            await tester.enterText(find.byType(TextField), '긴 메시지 $i ' * 20);
             await tester.pump();
             await tester.tap(find.byIcon(Icons.send_rounded));
             await tester.pump(const Duration(seconds: 2));
