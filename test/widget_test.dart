@@ -14,7 +14,11 @@ void main() {
     expect(find.byType(ListView), findsOneWidget);
     expect(find.text('오늘 뭐 배워?'), findsOneWidget);
 
-    // 아직 입력창은 TODO 상태다
-    expect(find.textContaining('TODO 3'), findsOneWidget);
+    // 입력창에 메시지를 입력해 전송하면 사용자 말풍선으로 추가된다.
+    await tester.enterText(find.byType(TextField), '직접 보낸 메시지');
+    await tester.tap(find.byIcon(Icons.send_rounded));
+    await tester.pump();
+
+    expect(find.text('직접 보낸 메시지'), findsOneWidget);
   });
 }

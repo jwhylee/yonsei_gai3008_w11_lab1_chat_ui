@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 void main() => runApp(const ChatLabApp());
@@ -36,12 +38,49 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   /// 실습용 가짜 대화 — API를 붙이기 전까지 이 목록으로 화면을 만든다.
-  final List<ChatMessage> _messages = const [
+  final List<ChatMessage> _messages = [
     ChatMessage(text: '오늘 뭐 배워?', isUser: true),
     ChatMessage(text: 'AI 챗봇에 움직이는 응답을 붙입니다.', isUser: false),
     ChatMessage(text: '타이핑 점은 왜 필요해요?', isUser: true),
     ChatMessage(text: '응답이 1초를 넘으면 앱이 멈춘 것처럼 보이기 때문입니다.', isUser: false),
   ];
+
+  final _controller = TextEditingController();
+
+  /// AI 응답을 기다리는 동안에만 대기 말풍선을 보여 준다.
+  bool _sending = false;
+  Timer? _responseTimer;
+
+  bool get _canSend => _controller.text.trim().isNotEmpty;
+  bool get _isUserTyping => _canSend;
+
+  void _send() {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() {
+      _messages.add(ChatMessage(text: text, isUser: true));
+      _controller.clear();
+      _sending = true;
+    });
+
+    // API 연결 전에는 응답을 흉내 내어 대기 애니메이션을 확인한다.
+    _responseTimer?.cancel();
+    _responseTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(const ChatMessage(text: '아직 미구현되었습니다.', isUser: false));
+        _sending = false;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _responseTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,10 +102,31 @@ class _ChatPageState extends State<ChatPage> {
               child: ListView.builder(
                 reverse: true,
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: _messages.length,
+                // 입력/전송 중 표시도 가장 최근 항목처럼 목록 맨 아래에 놓는다.
+                itemCount:
+                    _messages.length +
+                    (_isUserTyping ? 1 : 0) +
+                    (_sending ? 1 : 0),
                 itemBuilder: (context, index) {
+                  if (_isUserTyping && index == 0) {
+                    return const _TypingBubble(
+                      isUser: true,
+                      label: '메시지를 입력하고 있습니다',
+                    );
+                  }
+
+                  final aiTypingIndex = _isUserTyping ? 1 : 0;
+                  if (_sending && index == aiTypingIndex) {
+                    return const _TypingBubble(
+                      isUser: false,
+                      label: 'AI가 응답을 작성하고 있습니다',
+                    );
+                  }
+
+                  final statusCount =
+                      (_isUserTyping ? 1 : 0) + (_sending ? 1 : 0);
                   final message =
-                      _messages[_messages.length - 1 - index];
+                      _messages[_messages.length - 1 - (index - statusCount)];
                   return _Bubble(message: message);
                 },
               ),
@@ -79,20 +139,86 @@ class _ChatPageState extends State<ChatPage> {
             //      지금은 목록에 가짜 대화가 있어 빈 상태가 보이지 않는다.
             //      _messages를 비우고 확인해 보자.
             // ─────────────────────────────────────────────────────────
-
-            // ─────────────────────────────────────────────────────────
-            // TODO 3 — 입력창 (TextField + 전송 버튼)
-            // TIP:
-            //  · final _controller = TextEditingController(); 를 State에 둔다.
-            //  · Row(children: [Expanded(TextField(...)), IconButton.filled(...)])
-            //  · TextField(textInputAction: TextInputAction.send,
-            //             onSubmitted: (_) => _send())
-            //  · 보낼 때 _controller.clear() 하고 setState로 목록에 추가한다.
-            //  · dispose()에서 _controller.dispose()를 잊지 않는다.
-            // ─────────────────────────────────────────────────────────
-            const _TodoBar(label: 'TODO 3 — 여기에 입력창을 만든다'),
+            _MessageComposer(
+              controller: _controller,
+              canSend: _canSend && !_sending,
+              onChanged: (_) => setState(() {}),
+              onSend: _send,
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// TODO 3 — 테마 색상을 따르는 하단 메시지 입력창.
+class _MessageComposer extends StatelessWidget {
+  const _MessageComposer({
+    required this.controller,
+    required this.canSend,
+    required this.onChanged,
+    required this.onSend,
+  });
+
+  final TextEditingController controller;
+  final bool canSend;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              onSubmitted: (_) => onSend(),
+              textInputAction: TextInputAction.send,
+              minLines: 1,
+              maxLines: 4,
+              decoration: InputDecoration(
+                hintText: '메시지를 입력하세요',
+                isDense: true,
+                constraints: const BoxConstraints(minHeight: 48),
+                filled: true,
+                fillColor: colorScheme.surfaceContainerHighest,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: IconButton.filled(
+              onPressed: canSend ? onSend : null,
+              tooltip: '메시지 전송',
+              icon: const Icon(Icons.send_rounded),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -153,32 +279,105 @@ class _Bubble extends StatelessWidget {
   }
 }
 
-/// TODO 3이 끝나면 지운다. 지금은 입력창 자리를 보여 주는 표시일 뿐이다.
-class _TodoBar extends StatelessWidget {
-  const _TodoBar({required this.label});
+/// 메시지를 작성하거나 AI가 응답을 생성할 때 보이는 점 애니메이션 말풍선.
+class _TypingBubble extends StatelessWidget {
+  const _TypingBubble({required this.isUser, required this.label});
 
+  final bool isUser;
   final String label;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isUser
+              ? colorScheme.primaryContainer
+              : colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: _TypingDots(
+          label: label,
+          color: isUser
+              ? colorScheme.onPrimaryContainer
+              : colorScheme.onSurfaceVariant,
+        ),
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.edit_outlined, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 13),
+    );
+  }
+}
+
+class _TypingDots extends StatefulWidget {
+  const _TypingDots({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1050),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: widget.label,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return SizedBox(
+            width: 42,
+            height: 18,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(3, (index) {
+                final phase = (_controller.value + index / 3) % 1;
+                final progress = phase < 0.5
+                    ? Curves.easeOut.transform(phase * 2)
+                    : Curves.easeIn.transform((1 - phase) * 2);
+
+                return Transform.translate(
+                  offset: Offset(0, -3 * progress),
+                  child: Opacity(
+                    opacity: 0.3 + (0.7 * progress),
+                    child: Container(
+                      width: 5,
+                      height: 5,
+                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                      decoration: BoxDecoration(
+                        color: widget.color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                );
+              }),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
