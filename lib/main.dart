@@ -81,8 +81,11 @@ class _ChatPageState extends State<ChatPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       // TODO 5 — 키보드가 입력창을 가리지 않게
-      // TIP: Scaffold의 resizeToAvoidBottomInset은 기본값이 true다.
-      //      body를 SafeArea로 감싸 홈 인디케이터와 노치를 피한다.
+      //    · 키보드가 올라오면 body 높이를 줄여 입력창을 키보드 위로 올린다.
+      //      (기본값도 true지만 의도를 드러내려고 명시한다.)
+      //    · Android는 AndroidManifest의 windowSoftInputMode="adjustResize"가 함께 필요하다.
+      //    · body를 SafeArea로 감싸 홈 인디케이터와 노치를 피한다.
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(title: const Text('AI Chat — 실습 1')),
       body: SafeArea(
         child: Column(
@@ -95,62 +98,39 @@ class _ChatPageState extends State<ChatPage> {
             // ─────────────────────────────────────────────────────────
             // ─────────────────────────────────────────────────────────
             // TODO 4 — 빈 상태
-            //    ListView를 Stack으로 감싸고, 대화가 비었을 때만
-            //    흐린 안내 문구를 가운데에 겹쳐 띄운다.
+            //    배경 문구 대신 입력창 힌트로 "무엇이든 물어보세요"를 보여 준다.
             // ─────────────────────────────────────────────────────────
             Expanded(
-              child: Stack(
-                children: [
-                  ListView.builder(
-                    reverse: true,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    // 입력/전송 중 표시도 가장 최근 항목처럼 목록 맨 아래에 놓는다.
-                    itemCount:
-                        _messages.length +
-                        (_isUserTyping ? 1 : 0) +
-                        (_sending ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (_isUserTyping && index == 0) {
-                        return const _TypingBubble(
-                          isUser: true,
-                          label: '메시지를 입력하고 있습니다',
-                        );
-                      }
+              child: ListView.builder(
+                reverse: true,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                // 입력/전송 중 표시도 가장 최근 항목처럼 목록 맨 아래에 놓는다.
+                itemCount:
+                    _messages.length +
+                    (_isUserTyping ? 1 : 0) +
+                    (_sending ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (_isUserTyping && index == 0) {
+                    return const _TypingBubble(
+                      isUser: true,
+                      label: '메시지를 입력하고 있습니다',
+                    );
+                  }
 
-                      final aiTypingIndex = _isUserTyping ? 1 : 0;
-                      if (_sending && index == aiTypingIndex) {
-                        return const _TypingBubble(
-                          isUser: false,
-                          label: 'AI가 응답을 작성하고 있습니다',
-                        );
-                      }
+                  final aiTypingIndex = _isUserTyping ? 1 : 0;
+                  if (_sending && index == aiTypingIndex) {
+                    return const _TypingBubble(
+                      isUser: false,
+                      label: 'AI가 응답을 작성하고 있습니다',
+                    );
+                  }
 
-                      final statusCount =
-                          (_isUserTyping ? 1 : 0) + (_sending ? 1 : 0);
-                      final message =
-                          _messages[_messages.length -
-                              1 -
-                              (index - statusCount)];
-                      return _Bubble(message: message);
-                    },
-                  ),
-                  if (_messages.isEmpty)
-                    // 안내 문구가 목록 스크롤·터치를 막지 않게 한다.
-                    IgnorePointer(
-                      child: Center(
-                        child: Text(
-                          '무엇이든 물어보세요',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant
-                                    .withValues(alpha: 0.6),
-                              ),
-                        ),
-                      ),
-                    ),
-                ],
+                  final statusCount =
+                      (_isUserTyping ? 1 : 0) + (_sending ? 1 : 0);
+                  final message =
+                      _messages[_messages.length - 1 - (index - statusCount)];
+                  return _Bubble(message: message);
+                },
               ),
             ),
 
@@ -203,7 +183,7 @@ class _MessageComposer extends StatelessWidget {
               minLines: 1,
               maxLines: 4,
               decoration: InputDecoration(
-                hintText: '메시지를 입력하세요',
+                hintText: '무엇이든 물어보세요',
                 isDense: true,
                 constraints: const BoxConstraints(minHeight: 48),
                 filled: true,
