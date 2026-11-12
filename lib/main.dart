@@ -38,12 +38,7 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   /// 실습용 가짜 대화 — API를 붙이기 전까지 이 목록으로 화면을 만든다.
-  final List<ChatMessage> _messages = [
-    ChatMessage(text: '오늘 뭐 배워?', isUser: true),
-    ChatMessage(text: 'AI 챗봇에 움직이는 응답을 붙입니다.', isUser: false),
-    ChatMessage(text: '타이핑 점은 왜 필요해요?', isUser: true),
-    ChatMessage(text: '응답이 1초를 넘으면 앱이 멈춘 것처럼 보이기 때문입니다.', isUser: false),
-  ];
+  final List<ChatMessage> _messages = [];
 
   final _controller = TextEditingController();
 
@@ -98,47 +93,67 @@ class _ChatPageState extends State<ChatPage> {
             //    · reverse:true면 index 0이 화면 맨 아래(최신)다.
             //    · 그래서 _messages[length - 1 - i]로 거꾸로 꺼낸다.
             // ─────────────────────────────────────────────────────────
+            // ─────────────────────────────────────────────────────────
+            // TODO 4 — 빈 상태
+            //    ListView를 Stack으로 감싸고, 대화가 비었을 때만
+            //    흐린 안내 문구를 가운데에 겹쳐 띄운다.
+            // ─────────────────────────────────────────────────────────
             Expanded(
-              child: ListView.builder(
-                reverse: true,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                // 입력/전송 중 표시도 가장 최근 항목처럼 목록 맨 아래에 놓는다.
-                itemCount:
-                    _messages.length +
-                    (_isUserTyping ? 1 : 0) +
-                    (_sending ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (_isUserTyping && index == 0) {
-                    return const _TypingBubble(
-                      isUser: true,
-                      label: '메시지를 입력하고 있습니다',
-                    );
-                  }
+              child: Stack(
+                children: [
+                  ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    // 입력/전송 중 표시도 가장 최근 항목처럼 목록 맨 아래에 놓는다.
+                    itemCount:
+                        _messages.length +
+                        (_isUserTyping ? 1 : 0) +
+                        (_sending ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (_isUserTyping && index == 0) {
+                        return const _TypingBubble(
+                          isUser: true,
+                          label: '메시지를 입력하고 있습니다',
+                        );
+                      }
 
-                  final aiTypingIndex = _isUserTyping ? 1 : 0;
-                  if (_sending && index == aiTypingIndex) {
-                    return const _TypingBubble(
-                      isUser: false,
-                      label: 'AI가 응답을 작성하고 있습니다',
-                    );
-                  }
+                      final aiTypingIndex = _isUserTyping ? 1 : 0;
+                      if (_sending && index == aiTypingIndex) {
+                        return const _TypingBubble(
+                          isUser: false,
+                          label: 'AI가 응답을 작성하고 있습니다',
+                        );
+                      }
 
-                  final statusCount =
-                      (_isUserTyping ? 1 : 0) + (_sending ? 1 : 0);
-                  final message =
-                      _messages[_messages.length - 1 - (index - statusCount)];
-                  return _Bubble(message: message);
-                },
+                      final statusCount =
+                          (_isUserTyping ? 1 : 0) + (_sending ? 1 : 0);
+                      final message =
+                          _messages[_messages.length -
+                              1 -
+                              (index - statusCount)];
+                      return _Bubble(message: message);
+                    },
+                  ),
+                  if (_messages.isEmpty)
+                    // 안내 문구가 목록 스크롤·터치를 막지 않게 한다.
+                    IgnorePointer(
+                      child: Center(
+                        child: Text(
+                          '무엇이든 물어보세요',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant
+                                    .withValues(alpha: 0.6),
+                              ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
 
-            // ─────────────────────────────────────────────────────────
-            // TODO 4 — 빈 상태
-            // TIP: ListView를 Stack으로 감싸고, 목록이 비었을 때만
-            //      Center(child: Text('무엇이든 물어보세요'))를 위에 띄운다.
-            //      지금은 목록에 가짜 대화가 있어 빈 상태가 보이지 않는다.
-            //      _messages를 비우고 확인해 보자.
-            // ─────────────────────────────────────────────────────────
             _MessageComposer(
               controller: _controller,
               canSend: _canSend && !_sending,
