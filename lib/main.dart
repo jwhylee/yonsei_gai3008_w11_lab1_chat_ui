@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 
 void main() => runApp(const ChatLabApp());
 
+/// 대화 영역 배율. 말풍선·입력 예시·타이핑 점의 글자와 여백에 곱한다.
+/// 하단 입력창과 전송 버튼에는 적용하지 않는다.
+const double kChatScale = 1.2;
+
 class ChatLabApp extends StatelessWidget {
   const ChatLabApp({super.key});
 
@@ -46,8 +50,26 @@ class _ChatPageState extends State<ChatPage> {
   bool _sending = false;
   Timer? _responseTimer;
 
+  /// 대화가 비었을 때 입력창 위에 보여 줄 입력 예시.
+  static const _suggestions = [
+    '오늘 뭐 배워?',
+    'Flutter 위젯이 뭐야?',
+    '타이핑 점은 왜 필요해요?',
+    '오늘 할 일 정리해 줘',
+  ];
+
   bool get _canSend => _controller.text.trim().isNotEmpty;
   bool get _isUserTyping => _canSend;
+
+  /// 예시를 누르면 입력창에 채우기만 한다. 전송은 사용자가 직접 한다.
+  void _fillSuggestion(String text) {
+    setState(() {
+      _controller.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    });
+  }
 
   void _send() {
     final text = _controller.text.trim();
@@ -88,60 +110,130 @@ class _ChatPageState extends State<ChatPage> {
       resizeToAvoidBottomInset: true,
       appBar: AppBar(title: const Text('AI Chat — 실습 1')),
       body: SafeArea(
-        child: Column(
-          children: [
-            // ─────────────────────────────────────────────────────────
-            // ✅ 할 일 1 — 완료된 부분
-            //    ListView.builder + reverse: true
-            //    · reverse:true면 index 0이 화면 맨 아래(최신)다.
-            //    · 그래서 _messages[length - 1 - i]로 거꾸로 꺼낸다.
-            // ─────────────────────────────────────────────────────────
-            // ─────────────────────────────────────────────────────────
-            // TODO 4 — 빈 상태
-            //    배경 문구 대신 입력창 힌트로 "무엇이든 물어보세요"를 보여 준다.
-            // ─────────────────────────────────────────────────────────
-            Expanded(
-              child: ListView.builder(
-                reverse: true,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                // 입력/전송 중 표시도 가장 최근 항목처럼 목록 맨 아래에 놓는다.
-                itemCount:
-                    _messages.length +
-                    (_isUserTyping ? 1 : 0) +
-                    (_sending ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (_isUserTyping && index == 0) {
-                    return const _TypingBubble(
-                      isUser: true,
-                      label: '메시지를 입력하고 있습니다',
-                    );
-                  }
+        child: LayoutBuilder(
+          builder: (context, constraints) =>
+              _buildChat(context, constraints.maxHeight),
+        ),
+      ),
+    );
+  }
 
-                  final aiTypingIndex = _isUserTyping ? 1 : 0;
-                  if (_sending && index == aiTypingIndex) {
-                    return const _TypingBubble(
-                      isUser: false,
-                      label: 'AI가 응답을 작성하고 있습니다',
-                    );
-                  }
+  Widget _buildChat(BuildContext context, double availableHeight) {
+    // 화면이 낮을 때(가로 모드 + 키보드 등) 여러 줄 입력이 화면을 넘치지 않도록
+    // 입력창이 화면 높이의 절반을 넘지 않는 만큼만 줄 수를 허용한다(최대 4줄).
+    // 보통 세로 화면에서는 항상 4줄이다.
+    final lineHeight = MediaQuery.textScalerOf(context).scale(16) * 1.5;
+    final maxLines = ((availableHeight / 2 - 50) / lineHeight).floor().clamp(
+      1,
+      4,
+    );
+    final showSuggestions = _messages.isEmpty;
+    final statusCount = (_isUserTyping ? 1 : 0) + (_sending ? 1 : 0);
 
-                  final statusCount =
-                      (_isUserTyping ? 1 : 0) + (_sending ? 1 : 0);
-                  final message =
-                      _messages[_messages.length - 1 - (index - statusCount)];
-                  return _Bubble(message: message);
-                },
+    return Column(
+      children: [
+        // ─────────────────────────────────────────────────────────
+        // ✅ 할 일 1 — 완료된 부분
+        //    ListView.builder + reverse: true
+        //    · reverse:true면 index 0이 화면 맨 아래(최신)다.
+        //    · 그래서 _messages[length - 1 - i]로 거꾸로 꺼낸다.
+        // ─────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────
+        // TODO 4 — 빈 상태
+        //    배경 문구 대신 입력창 힌트로 "무엇이든 물어보세요"를 보여 준다.
+        // ─────────────────────────────────────────────────────────
+        Expanded(
+          // 대화 영역(말풍선·입력 예시) 글자만 kChatScale배. 입력창은 원래 크기를 쓴다.
+          // 기기 글자 크기 설정도 반영하되, 둘이 곱해져 너무 커지지 않도록
+          // 기기 설정은 1.3배까지만 따른다.
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(
+                MediaQuery.textScalerOf(
+                      context,
+                    ).clamp(maxScaleFactor: 1.3).scale(1) *
+                    kChatScale,
               ),
             ),
+            child: ListView.builder(
+              reverse: true,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              // 입력/전송 중 표시도 가장 최근 항목처럼 목록 맨 아래에 놓는다.
+              // 입력 예시도 목록의 한 항목이라 공간이 모자라면 함께 스크롤된다.
+              itemCount:
+                  _messages.length + statusCount + (showSuggestions ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (_isUserTyping && index == 0) {
+                  return const _TypingBubble(
+                    isUser: true,
+                    label: '메시지를 입력하고 있습니다',
+                  );
+                }
 
-            _MessageComposer(
-              controller: _controller,
-              canSend: _canSend && !_sending,
-              onChanged: (_) => setState(() {}),
-              onSend: _send,
+                final aiTypingIndex = _isUserTyping ? 1 : 0;
+                if (_sending && index == aiTypingIndex) {
+                  return const _TypingBubble(
+                    isUser: false,
+                    label: 'AI가 응답을 작성하고 있습니다',
+                  );
+                }
+
+                // 대화가 비었을 때만 보이므로 항상 마지막(화면 맨 위) 항목이다.
+                if (showSuggestions) {
+                  return _SuggestionChips(
+                    suggestions: _suggestions,
+                    onSelected: _fillSuggestion,
+                  );
+                }
+
+                final message =
+                    _messages[_messages.length - 1 - (index - statusCount)];
+                return _Bubble(message: message);
+              },
             ),
-          ],
+          ),
         ),
+
+        _MessageComposer(
+          controller: _controller,
+          canSend: _canSend && !_sending,
+          maxLines: maxLines,
+          onChanged: (_) => setState(() {}),
+          onSend: _send,
+        ),
+      ],
+    );
+  }
+}
+
+/// 입력 예시 칩을 왼쪽에 세로로 쌓아 모두 보여 준다.
+class _SuggestionChips extends StatelessWidget {
+  const _SuggestionChips({required this.suggestions, required this.onSelected});
+
+  final List<String> suggestions;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        12 * kChatScale,
+        4 * kChatScale,
+        12 * kChatScale,
+        4 * kChatScale,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final text in suggestions)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6 * kChatScale),
+              child: ActionChip(
+                label: Text(text),
+                onPressed: () => onSelected(text),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -152,12 +244,14 @@ class _MessageComposer extends StatelessWidget {
   const _MessageComposer({
     required this.controller,
     required this.canSend,
+    required this.maxLines,
     required this.onChanged,
     required this.onSend,
   });
 
   final TextEditingController controller;
   final bool canSend;
+  final int maxLines;
   final ValueChanged<String> onChanged;
   final VoidCallback onSend;
 
@@ -181,7 +275,7 @@ class _MessageComposer extends StatelessWidget {
               onSubmitted: (_) => onSend(),
               textInputAction: TextInputAction.send,
               minLines: 1,
-              maxLines: 4,
+              maxLines: maxLines,
               decoration: InputDecoration(
                 hintText: '무엇이든 물어보세요',
                 isDense: true,
@@ -252,14 +346,21 @@ class _Bubble extends StatelessWidget {
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        constraints: const BoxConstraints(maxWidth: 420),
+        margin: const EdgeInsets.symmetric(
+          horizontal: 12 * kChatScale,
+          vertical: 4 * kChatScale,
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12 * kChatScale,
+          vertical: 10 * kChatScale,
+        ),
+        // 화면이 이보다 좁으면 화면 폭에 맞춰 줄바꿈된다.
+        constraints: const BoxConstraints(maxWidth: 420 * kChatScale),
         decoration: BoxDecoration(
           color: isUser
               ? colorScheme.primaryContainer
               : colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(14 * kChatScale),
         ),
         child: Text(
           message.text,
@@ -288,13 +389,19 @@ class _TypingBubble extends StatelessWidget {
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        margin: const EdgeInsets.symmetric(
+          horizontal: 12 * kChatScale,
+          vertical: 4 * kChatScale,
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12 * kChatScale,
+          vertical: 10 * kChatScale,
+        ),
         decoration: BoxDecoration(
           color: isUser
               ? colorScheme.primaryContainer
               : colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(14 * kChatScale),
         ),
         child: _TypingDots(
           label: label,
@@ -344,8 +451,8 @@ class _TypingDotsState extends State<_TypingDots>
         animation: _controller,
         builder: (context, child) {
           return SizedBox(
-            width: 42,
-            height: 18,
+            width: 42 * kChatScale,
+            height: 18 * kChatScale,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(3, (index) {
@@ -355,13 +462,15 @@ class _TypingDotsState extends State<_TypingDots>
                     : Curves.easeIn.transform((1 - phase) * 2);
 
                 return Transform.translate(
-                  offset: Offset(0, -3 * progress),
+                  offset: Offset(0, -3 * kChatScale * progress),
                   child: Opacity(
                     opacity: 0.3 + (0.7 * progress),
                     child: Container(
-                      width: 5,
-                      height: 5,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                      width: 5 * kChatScale,
+                      height: 5 * kChatScale,
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 2 * kChatScale,
+                      ),
                       decoration: BoxDecoration(
                         color: widget.color,
                         shape: BoxShape.circle,

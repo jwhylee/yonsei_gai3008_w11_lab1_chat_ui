@@ -60,4 +60,24 @@ void main() {
       lessThanOrEqualTo(keyboardTop),
     );
   });
+
+  testWidgets('입력 예시를 누르면 입력창에 채워지고, 대화가 시작되면 사라진다', (tester) async {
+    await tester.pumpWidget(const ChatLabApp());
+
+    expect(find.byType(ActionChip), findsWidgets);
+    await tester.tap(find.widgetWithText(ActionChip, 'Flutter 위젯이 뭐야?'));
+    await tester.pump();
+
+    // 바로 전송되지 않고 입력창에만 채워진다.
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'Flutter 위젯이 뭐야?',
+    );
+
+    await tester.tap(find.byIcon(Icons.send_rounded));
+    await tester.pump();
+    expect(find.byType(ActionChip), findsNothing);
+
+    await tester.pump(const Duration(seconds: 2));
+  });
 }
