@@ -210,7 +210,7 @@ class _MessageComposer extends StatelessWidget {
                 fillColor: colorScheme.surfaceContainerHighest,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 12,
+                  vertical: 15,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
